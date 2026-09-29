@@ -10,7 +10,6 @@ DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_DATABASE:-lms_vedvihan}"
 DB_USER="${DB_USERNAME:-lms_vedvihan_user}"
 DB_PASSWORD="${DB_PASSWORD}"
-DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 REDIS_HOST="${REDIS_HOST:-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
@@ -36,11 +35,6 @@ cd "${BENCH_DIR}"
 # Idempotent: rewrites common_site_config.json and strips the redis/watch
 # entries we run as separate processes (or not at all) here.
 bench set-mariadb-host "${DB_HOST}"
-# bench new-site needs a privileged login to create the database and
-# otherwise prompts on a TTY, which does not exist in a container.
-# Always overwrite: a stale value here survives every restart and silently
-# breaks new-site with "Access denied".
-bench set-config -g mariadb_root_password "${DB_ROOT_PASSWORD}"
 bench set-redis-cache-host "redis://${REDIS_HOST}:${REDIS_PORT}"
 bench set-redis-queue-host "redis://${REDIS_HOST}:${REDIS_PORT}"
 bench set-redis-socketio-host "redis://${REDIS_HOST}:${REDIS_PORT}"
@@ -68,8 +62,10 @@ fi
 # site_config.json is written before new-site touches the database, so a
 # failed install leaves it behind and the next restart would "migrate" an
 # empty DB. Decide from the database instead. A query failure (DB down,
-# bad root password) exits so the container retries rather than reinstalls.
-FRAPPE_TABLES=$(MYSQL_PWD="${DB_ROOT_PASSWORD}" mariadb -h "${DB_HOST}" -P "${DB_PORT}" -uroot -N -e \
+# bad password) exits so the container retries rather than reinstalls.
+# No root anywhere: the shared MariaDB's root is not reachable from other
+# containers, so the DB and its user are provisioned by hand beforehand.
+FRAPPE_TABLES=$(MYSQL_PWD="${DB_PASSWORD}" mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u"${DB_USER}" -N -e \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}' AND table_name='tabDefaultValue'")
 
 if [ "${FRAPPE_TABLES}" = "1" ] && [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
@@ -81,18 +77,22 @@ fi
 if [ "${FRAPPE_TABLES}" != "1" ]; then
     echo "Creating Frappe site ${SITE_NAME}..."
     # Leftovers from a failed attempt: the site folder blocks new-site, and
-    # --force lets it drop and recreate the (empty) database and its user.
+    # a half-bootstrapped schema would collide. The app user's grant on
+    # ${DB_NAME}.* is enough to recreate its own database.
     rm -rf "sites/${SITE_NAME}"
+    MYSQL_PWD="${DB_PASSWORD}" mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u"${DB_USER}" -e \
+        "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+    # --setup-db false: skip Frappe's CREATE USER / CREATE DATABASE, which
+    # need root, and only bootstrap the schema into the existing DB.
     bench new-site "${SITE_NAME}" \
-        --force \
+        --setup-db false \
         --db-type mariadb \
         --db-name "${DB_NAME}" \
         --db-user "${DB_USER}" \
         --db-password "${DB_PASSWORD}" \
         --db-host "${DB_HOST}" \
         --db-port "${DB_PORT}" \
-        --admin-password "${ADMIN_PASSWORD}" \
-        --no-mariadb-socket
+        --admin-password "${ADMIN_PASSWORD}"
 
     echo "Installing payments..."
     bench --site "${SITE_NAME}" install-app payments
