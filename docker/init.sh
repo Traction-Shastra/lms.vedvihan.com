@@ -14,6 +14,7 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 REDIS_HOST="${REDIS_HOST:-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 BENCH_DIR="/home/frappe/frappe-bench"
+STAGE_DIR="/home/frappe/bench-stage"
 
 echo "=========================================="
 echo "Frappe LMS initialization"
@@ -28,8 +29,19 @@ if [ -d "${BENCH_DIR}/apps/frappe" ]; then
     echo "Bench already exists."
     cd "${BENCH_DIR}"
 else
-    echo "Creating new bench..."
-    bench init --skip-redis-config-generation frappe-bench
+    # `bench init` aborts if the target dir already exists, and a named volume
+    # always pre-creates it. Init on the container layer, then move it in.
+    if [ ! -d "${STAGE_DIR}/apps/frappe" ]; then
+        echo "Creating new bench (staged)..."
+        rm -rf "${STAGE_DIR}"
+        bench init --skip-redis-config-generation "${STAGE_DIR}"
+    fi
+
+    echo "Moving bench into volume..."
+    find "${BENCH_DIR}" -mindepth 1 -delete
+    cp -a "${STAGE_DIR}/." "${BENCH_DIR}/"
+    rm -rf "${STAGE_DIR}"
+
     cd "${BENCH_DIR}"
 
     bench set-mariadb-host "${DB_HOST}"
