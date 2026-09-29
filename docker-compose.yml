@@ -1,0 +1,76 @@
+name: lms-vedvihan-com
+
+services:
+
+  lms-vedvihan-com-frappe:
+    image: frappe/bench:latest
+    container_name: lms-vedvihan-com-frappe
+    restart: unless-stopped
+    command: bash /workspace/docker/init.sh
+    environment:
+      SHELL: /bin/bash
+      DB_HOST: mariadb
+      DB_PORT: "3306"
+      DB_DATABASE: lms_vedvihan
+      DB_USERNAME: lms_vedvihan_user
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD not set in .env}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      FRAPPE_SITE_NAME: lms.vedvihan.com
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD not set in .env}
+    working_dir: /home/frappe
+    volumes:
+      - .:/workspace
+      - bench:/home/frappe/frappe-bench
+    expose:
+      - "8000"
+      - "9000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      - internal
+      - backend_shared
+
+  lms-vedvihan-com-nginx:
+    image: nginx:1.29-alpine
+    container_name: lms-vedvihan-com-nginx
+    restart: unless-stopped
+    depends_on:
+      - lms-vedvihan-com-frappe
+    expose:
+      - "80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/nginx-health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    networks:
+      # container_name already publishes this as DNS on the web network,
+      # which is the hostname NPM forwards to. No alias needed.
+      - proxy
+      - internal
+
+volumes:
+  bench:
+
+networks:
+  proxy:
+    external: true
+    name: web
+  backend_shared:
+    external: true
+    name: backend_shared
+  # ponytail: not `internal: true` — bench init / get-app / yarn need egress.
+  # Isolation from NPM comes from simply not joining the `web` network.
+  internal:

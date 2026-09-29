@@ -1,42 +1,91 @@
-#!bin/bash
+#!/bin/bash
 
-if [ -d "/home/frappe/frappe-bench/apps/frappe" ]; then
-    echo "Bench already exists, skipping init"
-    cd frappe-bench
-    bench start
-else
-    echo "Creating new bench..."
-fi
+set -e
 
 export PATH="${NVM_DIR}/versions/node/v${NODE_VERSION_DEVELOP}/bin/:${PATH}"
 
-bench init --skip-redis-config-generation frappe-bench
+SITE_NAME="${FRAPPE_SITE_NAME:-lms.vedvihan.com}"
+DB_HOST="${DB_HOST:-mariadb}"
+DB_PORT="${DB_PORT:-3306}"
+DB_NAME="${DB_DATABASE:-lms_vedvihan}"
+DB_USER="${DB_USERNAME:-lms_vedvihan_user}"
+DB_PASSWORD="${DB_PASSWORD}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD}"
+REDIS_HOST="${REDIS_HOST:-redis}"
+REDIS_PORT="${REDIS_PORT:-6379}"
+BENCH_DIR="/home/frappe/frappe-bench"
 
-cd frappe-bench
+echo "=========================================="
+echo "Frappe LMS initialization"
+echo "=========================================="
+echo "Site:        ${SITE_NAME}"
+echo "Database:    ${DB_NAME}"
+echo "DB host:     ${DB_HOST}:${DB_PORT}"
+echo "Redis host:  ${REDIS_HOST}:${REDIS_PORT}"
+echo "=========================================="
 
-# Use containers instead of localhost
-bench set-mariadb-host mariadb
-bench set-redis-cache-host redis://redis:6379
-bench set-redis-queue-host redis://redis:6379
-bench set-redis-socketio-host redis://redis:6379
+if [ -d "${BENCH_DIR}/apps/frappe" ]; then
+    echo "Bench already exists."
+    cd "${BENCH_DIR}"
+else
+    echo "Creating new bench..."
+    rm -rf "${BENCH_DIR}"
+    bench init --skip-redis-config-generation frappe-bench
+    cd "${BENCH_DIR}"
 
-# Remove redis, watch from Procfile
-sed -i '/redis/d' ./Procfile
-sed -i '/watch/d' ./Procfile
+    bench set-mariadb-host "${DB_HOST}"
 
-bench get-app payments
-bench get-app lms
+    bench set-redis-cache-host "redis://${REDIS_HOST}:${REDIS_PORT}"
+    bench set-redis-queue-host "redis://${REDIS_HOST}:${REDIS_PORT}"
+    bench set-redis-socketio-host "redis://${REDIS_HOST}:${REDIS_PORT}"
 
-bench new-site lms.localhost \
---force \
---mariadb-root-password 123 \
---admin-password admin \
---no-mariadb-socket
+    # redis + watch run in separate containers in the official architecture;
+    # here they are unused, so drop them from the Procfile.
+    sed -i '/redis/d' ./Procfile
+    sed -i '/watch/d' ./Procfile
 
-bench --site lms.localhost install-app payments
-bench --site lms.localhost install-app lms
-bench --site lms.localhost set-config developer_mode 1
-bench --site lms.localhost clear-cache
-bench use lms.localhost
+    if [ ! -d "apps/payments" ]; then
+        echo "Installing payments..."
+        bench get-app https://github.com/frappe/payments.git --branch develop
+    fi
 
-bench start
+    if [ ! -d "apps/lms" ]; then
+        echo "Installing Traction-Shastra LMS fork..."
+        bench get-app https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
+    fi
+fi
+
+if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+    echo "Creating Frappe site ${SITE_NAME}..."
+    bench new-site "${SITE_NAME}" \
+        --db-type mariadb \
+        --db-name "${DB_NAME}" \
+        --db-user "${DB_USER}" \
+        --db-password "${DB_PASSWORD}" \
+        --db-host "${DB_HOST}" \
+        --db-port "${DB_PORT}" \
+        --admin-password "${ADMIN_PASSWORD}" \
+        --no-mariadb-socket
+
+    echo "Installing payments..."
+    bench --site "${SITE_NAME}" install-app payments
+
+    echo "Installing LMS..."
+    bench --site "${SITE_NAME}" install-app lms
+
+    bench --site "${SITE_NAME}" set-config host_name "https://${SITE_NAME}"
+    bench --site "${SITE_NAME}" set-config developer_mode 0
+    bench --site "${SITE_NAME}" clear-cache
+else
+    echo "Site already exists, running migrate..."
+    bench --site "${SITE_NAME}" migrate
+    bench --site "${SITE_NAME}" clear-cache
+fi
+
+bench use "${SITE_NAME}"
+
+echo "=========================================="
+echo "Starting Frappe"
+echo "=========================================="
+
+exec bench start

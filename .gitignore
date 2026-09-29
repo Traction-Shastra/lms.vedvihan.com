@@ -19,3 +19,6 @@ test-results
 playwright-report
 blob-report
 playwright/.auth
+.env
+.env.*
+!.env.example
