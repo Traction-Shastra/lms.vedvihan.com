@@ -26,8 +26,8 @@ docker run --name "$NAME" \
         export PATH="${NVM_DIR}/versions/node/v${NODE_VERSION_DEVELOP}/bin/:${PATH}"
         bench init --skip-redis-config-generation /home/frappe/frappe-bench
         cd /home/frappe/frappe-bench
-        bench get-app https://github.com/frappe/payments.git --branch develop
-        bench get-app https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
+        bench get-app payments --repo https://github.com/frappe/payments.git --branch develop
+        bench get-app lms --repo https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
     '
 
 echo "==> Copying out to ./frappe-bench"
