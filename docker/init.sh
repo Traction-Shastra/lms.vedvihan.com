@@ -49,7 +49,14 @@ fi
 
 if [ ! -d "apps/lms" ]; then
     echo "Installing Traction-Shastra LMS fork..."
-    bench get-app lms https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
+    # bench derives the app directory from the repo URL, and this fork is not
+    # named "lms". Stage it under the right name so get-app resolves apps/lms.
+    rm -rf apps/lms.vedvihan.com /tmp/lms
+    git clone --branch develop --depth 1 https://github.com/Traction-Shastra/lms.vedvihan.com.git /tmp/lms
+    bench get-app /tmp/lms
+    # get-app points `upstream` at the local staging path; put the real fork back.
+    git -C apps/lms remote set-url upstream https://github.com/Traction-Shastra/lms.vedvihan.com.git
+    rm -rf /tmp/lms
 fi
 
 if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then

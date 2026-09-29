@@ -27,7 +27,12 @@ docker run --name "$NAME" \
         bench init --skip-redis-config-generation /home/frappe/frappe-bench
         cd /home/frappe/frappe-bench
         bench get-app payments https://github.com/frappe/payments.git --branch develop
-        bench get-app lms https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
+        # bench names the app dir from the repo URL; this fork is not "lms".
+        rm -rf /tmp/lms
+        git clone --branch develop --depth 1 https://github.com/Traction-Shastra/lms.vedvihan.com.git /tmp/lms
+        bench get-app /tmp/lms
+        git -C /home/frappe/frappe-bench/apps/lms remote set-url upstream https://github.com/Traction-Shastra/lms.vedvihan.com.git
+        rm -rf /tmp/lms
     '
 
 echo "==> Copying out to ./frappe-bench"
