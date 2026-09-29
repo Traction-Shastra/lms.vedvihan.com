@@ -82,10 +82,10 @@ if [ "${FRAPPE_TABLES}" != "1" ]; then
     rm -rf "sites/${SITE_NAME}"
     MYSQL_PWD="${DB_PASSWORD}" mariadb -h "${DB_HOST}" -P "${DB_PORT}" -u"${DB_USER}" -e \
         "DROP DATABASE IF EXISTS \`${DB_NAME}\`; CREATE DATABASE \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-    # --setup-db false: skip Frappe's CREATE USER / CREATE DATABASE, which
+    # --no-setup-db: skip Frappe's CREATE USER / CREATE DATABASE, which
     # need root, and only bootstrap the schema into the existing DB.
     bench new-site "${SITE_NAME}" \
-        --setup-db false \
+        --no-setup-db \
         --db-type mariadb \
         --db-name "${DB_NAME}" \
         --db-user "${DB_USER}" \
