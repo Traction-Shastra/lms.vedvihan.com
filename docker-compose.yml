@@ -17,6 +17,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       FRAPPE_SITE_NAME: lms.vedvihan.com
+      # `bench serve` defaults to 127.0.0.1, unreachable from the nginx
+      # container (502). The port is still only exposed on internal networks.
+      FRAPPE_BIND_ADDR: 0.0.0.0
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD not set in .env}
     working_dir: /home/frappe
     volumes:
