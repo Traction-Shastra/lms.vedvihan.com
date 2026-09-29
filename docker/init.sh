@@ -44,12 +44,12 @@ sed -i '/watch/d' ./Procfile
 
 if [ ! -d "apps/payments" ]; then
     echo "Installing payments..."
-    bench get-app payments --repo https://github.com/frappe/payments.git --branch develop
+    bench get-app payments https://github.com/frappe/payments.git --branch develop
 fi
 
 if [ ! -d "apps/lms" ]; then
     echo "Installing Traction-Shastra LMS fork..."
-    bench get-app lms --repo https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
+    bench get-app lms https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
 fi
 
 if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
