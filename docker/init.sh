@@ -29,7 +29,6 @@ if [ -d "${BENCH_DIR}/apps/frappe" ]; then
     cd "${BENCH_DIR}"
 else
     echo "Creating new bench..."
-    rm -rf "${BENCH_DIR}"
     bench init --skip-redis-config-generation frappe-bench
     cd "${BENCH_DIR}"
 
