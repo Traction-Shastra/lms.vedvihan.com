@@ -14,7 +14,6 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 REDIS_HOST="${REDIS_HOST:-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 BENCH_DIR="/home/frappe/frappe-bench"
-STAGE_DIR="/home/frappe/bench-stage"
 
 echo "=========================================="
 echo "Frappe LMS initialization"
@@ -25,45 +24,32 @@ echo "DB host:     ${DB_HOST}:${DB_PORT}"
 echo "Redis host:  ${REDIS_HOST}:${REDIS_PORT}"
 echo "=========================================="
 
-if [ -d "${BENCH_DIR}/apps/frappe" ]; then
-    echo "Bench already exists."
-    cd "${BENCH_DIR}"
-else
-    # `bench init` aborts if the target dir already exists, and a named volume
-    # always pre-creates it. Init on the container layer, then move it in.
-    if [ ! -d "${STAGE_DIR}/apps/frappe" ]; then
-        echo "Creating new bench (staged)..."
-        rm -rf "${STAGE_DIR}"
-        bench init --skip-redis-config-generation "${STAGE_DIR}"
-    fi
+if [ ! -f "${BENCH_DIR}/apps/frappe/frappe/__init__.py" ]; then
+    echo "ERROR: no bench at ${BENCH_DIR}"
+    echo "Run this once on the host first:  bash docker/bootstrap.sh"
+    exit 1
+fi
 
-    echo "Moving bench into volume..."
-    find "${BENCH_DIR}" -mindepth 1 -delete
-    cp -a "${STAGE_DIR}/." "${BENCH_DIR}/"
-    rm -rf "${STAGE_DIR}"
+cd "${BENCH_DIR}"
 
-    cd "${BENCH_DIR}"
+# Idempotent: rewrites common_site_config.json and strips the redis/watch
+# entries we run as separate processes (or not at all) here.
+bench set-mariadb-host "${DB_HOST}"
+bench set-redis-cache-host "redis://${REDIS_HOST}:${REDIS_PORT}"
+bench set-redis-queue-host "redis://${REDIS_HOST}:${REDIS_PORT}"
+bench set-redis-socketio-host "redis://${REDIS_HOST}:${REDIS_PORT}"
 
-    bench set-mariadb-host "${DB_HOST}"
+sed -i '/redis/d' ./Procfile
+sed -i '/watch/d' ./Procfile
 
-    bench set-redis-cache-host "redis://${REDIS_HOST}:${REDIS_PORT}"
-    bench set-redis-queue-host "redis://${REDIS_HOST}:${REDIS_PORT}"
-    bench set-redis-socketio-host "redis://${REDIS_HOST}:${REDIS_PORT}"
+if [ ! -d "apps/payments" ]; then
+    echo "Installing payments..."
+    bench get-app https://github.com/frappe/payments.git --branch develop
+fi
 
-    # redis + watch run in separate containers in the official architecture;
-    # here they are unused, so drop them from the Procfile.
-    sed -i '/redis/d' ./Procfile
-    sed -i '/watch/d' ./Procfile
-
-    if [ ! -d "apps/payments" ]; then
-        echo "Installing payments..."
-        bench get-app https://github.com/frappe/payments.git --branch develop
-    fi
-
-    if [ ! -d "apps/lms" ]; then
-        echo "Installing Traction-Shastra LMS fork..."
-        bench get-app https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
-    fi
+if [ ! -d "apps/lms" ]; then
+    echo "Installing Traction-Shastra LMS fork..."
+    bench get-app https://github.com/Traction-Shastra/lms.vedvihan.com.git --branch develop
 fi
 
 if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then

@@ -21,7 +21,10 @@ services:
     working_dir: /home/frappe
     volumes:
       - .:/workspace
-      - bench:/home/frappe/frappe-bench
+      # Bind mount, not a named volume: the bench contains a venv with absolute
+      # shebangs, so it must live at the same path it was built at. Populate it
+      # once with docker/bootstrap.sh.
+      - ./frappe-bench:/home/frappe/frappe-bench
     expose:
       - "8000"
       - "9000"
@@ -60,9 +63,6 @@ services:
       # which is the hostname NPM forwards to. No alias needed.
       - proxy
       - internal
-
-volumes:
-  bench:
 
 networks:
   proxy:
