@@ -10,6 +10,7 @@ DB_PORT="${DB_PORT:-3306}"
 DB_NAME="${DB_DATABASE:-lms_vedvihan}"
 DB_USER="${DB_USERNAME:-lms_vedvihan_user}"
 DB_PASSWORD="${DB_PASSWORD}"
+DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD}"
 ADMIN_PASSWORD="${ADMIN_PASSWORD}"
 REDIS_HOST="${REDIS_HOST:-redis}"
 REDIS_PORT="${REDIS_PORT:-6379}"
@@ -35,6 +36,9 @@ cd "${BENCH_DIR}"
 # Idempotent: rewrites common_site_config.json and strips the redis/watch
 # entries we run as separate processes (or not at all) here.
 bench set-mariadb-host "${DB_HOST}"
+# bench new-site needs a privileged login to verify/create the database and
+# otherwise prompts on a TTY, which does not exist in a container.
+[ -n "${DB_ROOT_PASSWORD}" ] && bench set-config -g mariadb_root_password "${DB_ROOT_PASSWORD}"
 bench set-redis-cache-host "redis://${REDIS_HOST}:${REDIS_PORT}"
 bench set-redis-queue-host "redis://${REDIS_HOST}:${REDIS_PORT}"
 bench set-redis-socketio-host "redis://${REDIS_HOST}:${REDIS_PORT}"

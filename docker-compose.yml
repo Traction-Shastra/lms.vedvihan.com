@@ -14,6 +14,7 @@ services:
       DB_DATABASE: lms_vedvihan
       DB_USERNAME: lms_vedvihan_user
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD not set in .env}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD not set in .env}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       FRAPPE_SITE_NAME: lms.vedvihan.com
