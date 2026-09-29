@@ -65,9 +65,26 @@ if [ ! -d "apps/lms" ]; then
     rm -rf /tmp/lms
 fi
 
-if [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+# site_config.json is written before new-site touches the database, so a
+# failed install leaves it behind and the next restart would "migrate" an
+# empty DB. Decide from the database instead. A query failure (DB down,
+# bad root password) exits so the container retries rather than reinstalls.
+FRAPPE_TABLES=$(MYSQL_PWD="${DB_ROOT_PASSWORD}" mariadb -h "${DB_HOST}" -P "${DB_PORT}" -uroot -N -e \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}' AND table_name='tabDefaultValue'")
+
+if [ "${FRAPPE_TABLES}" = "1" ] && [ ! -f "sites/${SITE_NAME}/site_config.json" ]; then
+    echo "ERROR: ${DB_NAME} holds a Frappe install but sites/${SITE_NAME} is missing."
+    echo "Refusing to reinstall over it. Restore the site folder or drop the DB by hand."
+    exit 1
+fi
+
+if [ "${FRAPPE_TABLES}" != "1" ]; then
     echo "Creating Frappe site ${SITE_NAME}..."
+    # Leftovers from a failed attempt: the site folder blocks new-site, and
+    # --force lets it drop and recreate the (empty) database and its user.
+    rm -rf "sites/${SITE_NAME}"
     bench new-site "${SITE_NAME}" \
+        --force \
         --db-type mariadb \
         --db-name "${DB_NAME}" \
         --db-user "${DB_USER}" \
